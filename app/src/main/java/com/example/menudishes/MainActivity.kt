@@ -1,8 +1,12 @@
 package com.example.menudishes
 
+import android.os.Bundle
+import android.speech.tts.TextToSpeech
+import android.util.Log
 import com.example.menudishes.ui.theme.MenuDishesTheme
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -15,25 +19,58 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import java.text.Normalizer
+import java.util.Locale
 
-class MainActivity : androidx.activity.ComponentActivity() {
-    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+class MainActivity : androidx.activity.ComponentActivity(), TextToSpeech.OnInitListener {
+    private lateinit var textToSpeech: TextToSpeech
+
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        textToSpeech = TextToSpeech(this, this)
+
         setContent {
             MenuDishesTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    DishListWithSearch()
+                    DishListWithSearch(onDishClicked = { dishName ->
+                        speakDishName(dishName)
+                    })
                 }
             }
         }
     }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+             val result = textToSpeech.setLanguage(Locale("cs", "CZ"))
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                Log.e("TTS", "Idioma não suportado.")
+            }
+        } else {
+            Log.e("TTS", "Falha na inicialização do TTS.")
+        }
+    }
+
+
+    private fun speakDishName(dishName: String) {
+        textToSpeech.speak(dishName, TextToSpeech.QUEUE_FLUSH, null, null)
+    }
+
+    override fun onDestroy() {
+        // Libera recursos do TextToSpeech
+        if (this::textToSpeech.isInitialized) {
+            textToSpeech.stop()
+            textToSpeech.shutdown()
+        }
+        super.onDestroy()
+    }
 }
 
 @Composable
-fun DishListWithSearch() {
+fun DishListWithSearch(onDishClicked: (String) -> Unit) {
     var searchQuery by remember { mutableStateOf("") }
     val filteredDishes = remember(searchQuery) {
         if (searchQuery.isEmpty()) {
@@ -55,7 +92,7 @@ fun DishListWithSearch() {
             query = searchQuery,
             onQueryChange = { searchQuery = it }
         )
-        DishList(dishes = filteredDishes)
+        DishList(dishes = filteredDishes, onDishClicked = onDishClicked)
     }
 }
 
@@ -79,20 +116,21 @@ fun String.normalize(): String {
 }
 
 @Composable
-fun DishList(dishes: List<Dish>) {
+fun DishList(dishes: List<Dish>, onDishClicked: (String) -> Unit) {
     LazyColumn {
         items(dishes) { dish ->
-            DishItem(dish)
+            DishItem(dish, onDishClicked)
         }
     }
 }
 
 @Composable
-fun DishItem(dish: Dish) {
+fun DishItem(dish: Dish, onDishClicked: (String) -> Unit) {
     Card(
         modifier = Modifier
             .padding(8.dp)
             .fillMaxWidth()
+            .clickable { onDishClicked(dish.name) }  // Ação de clique para o nome do prato
     ) {
         Column {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -171,6 +209,8 @@ fun imageResourceId(imageName: String): Int {
         "drawable/kremrole" -> R.drawable.kremrole
         "drawable/rakvicka" -> R.drawable.rakvicka
         "drawable/laskonka" -> R.drawable.laskonka
+        "drawable/pstruhnamasle" -> R.drawable.pstruhnamasle
+        "drawable/rybipolevka" -> R.drawable.rybipolevka
         else -> R.drawable.placeholder
     }
 }
@@ -194,7 +234,7 @@ object DishesData {
         Dish(
             name = "Svíčková na smetaně",
             description = "Lombo de vaca em molho de natas com cenoura, servido com knedlíky.",
-            ingredients = listOf("Lombo de vaca", "Natas", "Cenoura", "Aipo", "Salsa", "Knedlíky"),
+            ingredients = listOf("Lombo de vaca", "Natas", "Cenoura", "Aipo", "Salsa", "Knedlíky", "Carne"),
             images = listOf("drawable/svickovawnawsmetane")
         ),
         Dish(
@@ -230,13 +270,13 @@ object DishesData {
         Dish(
             name = "Smažený kapr",
             description = "Carpa frita, prato tradicional de Natal na República Checa.",
-            ingredients = listOf("Carpa", "Farinha", "Ovo", "Pão ralado", "Limão", "Sal"),
+            ingredients = listOf("Carpa", "Farinha", "Ovo", "Pão ralado", "Limão", "Sal", "Peixe"),
             images = listOf("drawable/ccaedaaaacdjbbifajeagigebdjjieee")
         ),
         Dish(
             name = "Koleno",
             description = "Joelho de porco assado, servido com rábano picante e mostarda.",
-            ingredients = listOf("Joelho de porco", "Alho", "Cominho", "Cerveja", "Rábano picante", "Mostarda"),
+            ingredients = listOf("Joelho de porco", "Alho", "Cominho", "Cerveja", "Rábano picante", "Mostarda", "Carne"),
             images = listOf("drawable/koleno")
         ),
         Dish(
@@ -278,7 +318,7 @@ object DishesData {
         Dish(
             name = "Utopenci",
             description = "Salsichas marinadas em vinagre com cebola e pimentão.",
-            ingredients = listOf("Salsichas", "Cebola", "Pimentão", "Vinagre", "Pimenta", "Louro"),
+            ingredients = listOf("Salsichas", "Cebola", "Pimentão", "Vinagre", "Pimenta", "Louro", "Carne"),
             images = listOf("drawable/hdijwfhet")
         ),
         Dish(
@@ -320,7 +360,7 @@ object DishesData {
         Dish(
             name = "Svíčková na smetaně",
             description = "Lombo de vaca em molho cremoso de legumes, servido com knedlíky.",
-            ingredients = listOf("Lombo de vaca", "Cenoura", "Aipo", "Salsa", "Natas", "Knedlíky"),
+            ingredients = listOf("Lombo de vaca", "Cenoura", "Aipo", "Salsa", "Natas", "Knedlíky", "Carne"),
             images = listOf("drawable/svickovawnawsmetanec")
         ),
         Dish(
@@ -338,7 +378,7 @@ object DishesData {
         Dish(
             name = "Buřty na pivu",
             description = "Salsichas cozidas em cerveja com cebola e pimentão.",
-            ingredients = listOf("Salsichas", "Cerveja", "Cebola", "Pimentão", "Pimenta", "Mostarda"),
+            ingredients = listOf("Salsichas", "Cerveja", "Cebola", "Pimentão", "Pimenta", "Mostarda", "Carne"),
             images = listOf("drawable/bwhciwcdwbeautyshotwbbdcxgdhwburtywnawpivuwzwkotliku")
         ),
         Dish(
@@ -362,7 +402,7 @@ object DishesData {
         Dish(
             name = "Zabijačkový guláš",
             description = "Gulache feito com miudezas de porco, servido durante a matança do porco.",
-            ingredients = listOf("Miudezas de porco", "Cebola", "Alho", "Páprica", "Pimentão", "Cominho"),
+            ingredients = listOf("Miudezas de porco", "Cebola", "Alho", "Páprica", "Pimentão", "Cominho", "Carne"),
             images = listOf("drawable/efabbbcawbbjjwehfbwbaagwcbchfeccijab")
         ),
         Dish(
@@ -380,19 +420,19 @@ object DishesData {
         Dish(
             name = "Drštková polévka",
             description = "Sopa de tripas picante, popular como cura para a ressaca.",
-            ingredients = listOf("Tripas", "Batata", "Cebola", "Alho", "Páprica", "Manjerona"),
+            ingredients = listOf("Tripas", "Batata", "Cebola", "Alho", "Páprica", "Manjerona", "Carne"),
             images = listOf("drawable/gfebbicjafccaababafeiadceaddccbcwfacebook")
         ),
         Dish(
             name = "Telecí řízek",
             description = "Escalope de vitela panado, servido com salada de batata.",
-            ingredients = listOf("Vitela", "Ovo", "Farinha", "Pão ralado", "Óleo", "Limão"),
+            ingredients = listOf("Vitela", "Ovo", "Farinha", "Pão ralado", "Óleo", "Limão", "Carne"),
             images = listOf("drawable/escalopeswdewvitelawpanados")
         ),
         Dish(
             name = "Pečená kachna",
             description = "Pato assado, geralmente servido com knedlíky e couve roxa.",
-            ingredients = listOf("Pato", "Maçã", "Cebola", "Alho", "Manjerona", "Cominho"),
+            ingredients = listOf("Pato", "Maçã", "Cebola", "Alho", "Manjerona", "Cominho", "Carne"),
             images = listOf("drawable/pecccicenaccibwkachnawknedlickywandwredwcabbagewb")
         ),
         Dish(
@@ -416,7 +456,7 @@ object DishesData {
         Dish(
             name = "Vepřová žebra",
             description = "Costeletas de porco assadas, muitas vezes marinadas em cerveja e especiarias.",
-            ingredients = listOf("Costeletas de porco", "Cerveja", "Mel", "Alho", "Páprica", "Mostarda"),
+            ingredients = listOf("Costeletas de porco", "Cerveja", "Mel", "Alho", "Páprica", "Mostarda", "Carne"),
             images = listOf("drawable/marinovanawawpecenawveprovawzebirkawshutterstockwhdffbfhae")
         ),
         Dish(
@@ -472,6 +512,18 @@ object DishesData {
             description = "Dois discos de merengue com nozes, unidos por creme de manteiga.",
             ingredients = listOf("Claras de ovo", "Nozes", "Creme de manteiga", "Doce"),
             images = listOf("drawable/laskonka")
+        ),
+        Dish(
+            name = "Pstruh na másle",
+            description = "Truta grelhada na manteiga, muitas vezes servida com batatas e legumes.",
+            ingredients = listOf("Truta", "Manteiga", "Alho", "Limão", "Ervas", "Peixe"),
+            images = listOf("drawable/pstruhnamasle")
+        ),
+        Dish(
+            name = "Rybi polévka",
+            description = "Sopa de peixe, tradicionalmente preparada com carpa, cebola, alho e especiarias, servida principalmente no Natal.",
+            ingredients = listOf("Carpa", "Cebola", "Alho", "Cenoura", "Especiarias"),
+            images = listOf("drawable/rybipolevka")
         )
     ).sortedBy { it.name }
 }
